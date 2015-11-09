@@ -64,13 +64,17 @@ sigma(Gp,w)
 % actuator capacity. 
 
 % Define the largest allowed input signals (in Nm)
-umax = [XXX];
+T1_max = 0.666; %[Nm] Thomas: 09.11.
+T2_max = 2.44; %[Nm] Thomas: 09.11.
+umax = [T1_max T2_max];
 % and the largest expected change in reference (in rad)
-rmax = [XXX];
+q3_max = 10*pi./180; %[rad]
+q4_max = 45*pi./180; %[rad]
+rmax = [q3_max q4_max];
 % Now, scale both input and output this values
 Du = diag(umax);
 Dr = diag(rmax);
-G = XXX;
+G = Du*Gp/Dr; %Thomas: 09.11.
 
 % G is now our synthesis model used to design a controller.
 % When we apply this controller to the real plant, we need to remember to
@@ -91,16 +95,28 @@ G = XXX;
 % that we can use is makeweight(dcgain, bandwidth, feedthroughgain).
 % For W_S, the dcgain determines our inverse error constant, the bandwidth the speed
 % of response and the feedthroughgain limits the peak of S
-W_S1 = makeweight(XXX); 
-W_S2 = makeweight(XXX);
-W_S  = mdiag(XXX);
+dcgain1 = 1000;
+bandwidth1 = 1;
+feedthroughgain1 = 0.5;
+W_S1 = makeweight(dcgain1, bandwidth1, feedthroughgain1); % applied to v1
+dcgain2 = 1000;
+bandwidth2 = 1;
+feedthroughgain2 = 0.5;
+W_S2 = makeweight(dcgain2, bandwidth2, feedthroughgain2); % applied to v2
+W_S  = mdiag(W_S1, W_S2);
 
 % For W_K, the dcgain determines available control effort, the bandwidth 
 % corresponds to the available actuator rates and the feedthroughgain limits 
 % authority at high frequencies
-W_K1 = makeweight(XXX);
-W_K2 = makeweight(XXX);
-W_K  = mdiag(XXX);
+dcgain_k1 = 0.9;
+bandwidth_k1 = 2;
+feedthroughgain_k1 = 100;
+W_K1 = makeweight(dcgain_k1, bandwidth_k1, feedthroughgain_k1); % applied to u1
+dcgain_k2 = 0.7;
+bandwidth_k2 = 2;
+feedthroughgain_k2 = 100;
+W_K2 = makeweight(dcgain_k2, bandwidth_k2, feedthroughgain_k2); % applied to u2
+W_K  = mdiag(W_K1, W_K2);
 
 figure(3)
 sigma(W_S^-1,W_K^-1,w)
