@@ -28,7 +28,7 @@ q3_0 = 0;
 % (1 for single-degree-of-freedom)
 % (2 for two-degrees-of-freedom)
 % (3 for two-degrees-of-freedom with all measurements)
-select_controller = 1;
+select_controller = 3;
 
 %% run simulation
 addpath('./simulink')
