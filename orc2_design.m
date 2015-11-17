@@ -55,6 +55,7 @@ figure(1)
 bodemag(Gp,b,w)
 figure(2)
 sigma(Gp,w)
+grid on
 
 %% 1.2 Initial Scaling
 %
@@ -64,17 +65,13 @@ sigma(Gp,w)
 % actuator capacity. 
 
 % Define the largest allowed input signals (in Nm)
-T1_max = 0.666; %[Nm] Thomas: 09.11.
-T2_max = 2.44; %[Nm] Thomas: 09.11.
-umax = [T1_max T2_max];
+umax = [0.666 2.44];
 % and the largest expected change in reference (in rad)
-q3_max = 10*pi./180; %[rad]
-q4_max = 45*pi./180; %[rad]
-rmax = [q3_max q4_max];
+rmax = pi/180*[10 45];
 % Now, scale both input and output this values
 Du = diag(umax);
 Dr = diag(rmax);
-G = Du*Gp/Dr; %Thomas: 09.11.
+G = inv(Dr)*Gp*Du;
 
 % G is now our synthesis model used to design a controller.
 % When we apply this controller to the real plant, we need to remember to
@@ -95,31 +92,20 @@ G = Du*Gp/Dr; %Thomas: 09.11.
 % that we can use is makeweight(dcgain, bandwidth, feedthroughgain).
 % For W_S, the dcgain determines our inverse error constant, the bandwidth the speed
 % of response and the feedthroughgain limits the peak of S
-dcgain1 = 1000;
-bandwidth1 = 1;
-feedthroughgain1 = 0.5;
-W_S1 = makeweight(dcgain1, bandwidth1, feedthroughgain1); % applied to v1
-dcgain2 = 1000;
-bandwidth2 = 1;
-feedthroughgain2 = 0.5;
-W_S2 = makeweight(dcgain2, bandwidth2, feedthroughgain2); % applied to v2
-W_S  = mdiag(W_S1, W_S2);
+W_S1 = makeweight(1000,2,0.5); 
+W_S2 = makeweight(1000,2,0.5);
+W_S  = mdiag(W_S1,W_S2);
 
 % For W_K, the dcgain determines available control effort, the bandwidth 
 % corresponds to the available actuator rates and the feedthroughgain limits 
 % authority at high frequencies
-dcgain_k1 = 0.9;
-bandwidth_k1 = 2;
-feedthroughgain_k1 = 100;
-W_K1 = makeweight(dcgain_k1, bandwidth_k1, feedthroughgain_k1); % applied to u1
-dcgain_k2 = 0.7;
-bandwidth_k2 = 2;
-feedthroughgain_k2 = 100;
-W_K2 = makeweight(dcgain_k2, bandwidth_k2, feedthroughgain_k2); % applied to u2
-W_K  = mdiag(W_K1, W_K2);
+W_K1 = makeweight(0.8,10,1000);
+W_K2 = makeweight(0.7,10,1000);
+W_K  = mdiag(W_K1,W_K2);
 
 figure(3)
 sigma(W_S^-1,W_K^-1,w)
+grid on
 % Note that all these values despite having "clear interpretation" are
 % tuning values, and that's how the numbers in this example came up.
 
@@ -127,14 +113,14 @@ sigma(W_S^-1,W_K^-1,w)
 %
 % For our synthesis tools to work, we need to first assemble a generalized 
 % plant that includes performance inputs/outputs that represent S and KS.
-systemnames = 'XXX';
-inputvar = [XXX];
-input_to_G = '[XXX]';
-input_to_W_S = '[XXX]';
-input_to_W_K = '[XXX]';
-outputvar = [XXX];
+systemnames = 'G W_S W_K';
+inputvar = '[w{2}; u{2}]';
+input_to_G = '[u]';
+input_to_W_S = '[w-G]';
+input_to_W_K = '[u]';
+outputvar = '[W_S;W_K;w-G]';
 cleanupsysic = 'yes'; %this just deletes the temporary variables afterwards
-P = sysic
+P = sysic;
 
 % We can also use the command P = AUGW(G,W_S,W_K) [augment with weights] 
 % to get our generalized plant. 
@@ -162,9 +148,9 @@ sigma(P,P_verify,w)
 % that is at most 10% worse in the H-Infinity sense.
 
 % optimal synthesis to obtain the best possible gam
-[~,~,gam,~] = hinfsyn(XXX);
+[~,~,gam,~] = hinfsyn(ssbal(P),nmeas,ncont,'method','lmi');
 % suboptimal synthesis in which a controller with 1.1*gam is sufficient
-[K,CL,gam] = hinfsyn(XXX);
+[K,CL,gam] = hinfsyn(ssbal(P),nmeas,ncont,'method','lmi','GMIN',1.1*gam);
 gam
 
 % The first thing that we should always check is whether everything worked
@@ -193,19 +179,23 @@ fastestpole = max(abs(eig(K.a)))
 % as well as the transfer functions K*S and S*G (which are for square
 % plants the same as Si*K and G*Si, respectively)
 
-loops = loopsens(XXX);
+loops = loopsens(G,K);
 figure(4);
 subplot(2,2,1)
 sigma(loops.So,W_S^-1,w)
+grid on
 title('S')
 subplot(2,2,2)
 sigma(loops.PSi,w)
+grid on
 title('SG')
 subplot(2,2,3)
 sigma(loops.CSo,(W_K)^-1,w)
+grid on
 title('KS')
 subplot(2,2,4)
 sigma(loops.Ti,w)
+grid on
 title('Ti')
 
 % We can identify quite a few relevant properties of our design by looking 
@@ -237,7 +227,7 @@ title('PZmap with S/KS mixed sensitivity')
 %common problem with the S/KS design, since it means that input
 %disturbances are not adequately damped.
  
- 
+%%
 % Since what we are really interestet in is tracking of a signal in the 
 % time domain, let's take a look at the step responses of T. 
 % It shows us how the plant reacts to an output disturbance or a change
@@ -249,6 +239,7 @@ title('Step response S/KS mixed sensitivity')
 % Even though there is some oscillations visible in the second response,
 % the overall tracking can be seen to be sufficient.
 
+%%
 % If, on the other hand, we consider input disturbances, the deficits of
 % the present design that we expected from the frequency response analysis 
 % become very apparent:
@@ -265,7 +256,7 @@ title('Disturbance response S/KS mixed sensitivity')
 % is that they correspond to simultaneous gain and phase variations at ALL
 % plant inputs and outputs and are therefore a relatively safe measure for
 % robustness of MIMO systems
-mm = loopmargin(XXX,'m');
+mm = loopmargin(G*K,'m');
 minGM = db(mm.GainMargin(2))
 minPM = min(mm.PhaseMargin(2))
 % For the example, we get something like 9db and 50° Phase, which is
@@ -305,16 +296,16 @@ minPM = min(mm.PhaseMargin(2))
 % weight Wd, which can be initally set to identity.
 
 % disturbance weight
-Wd = XXX;
+Wd = diag([0.7, 0.9]);
 
 % S / SG
-W_S1 = makeweight(XXX); 
-W_S2 = makeweight(XXX);
-W_S  = mdiag(XXX);
+W_S1 = makeweight(1000,5,0.5); 
+W_S2 = makeweight(1000,3,0.5);
+W_S  = mdiag(W_S1,W_S2);
 
 % KS / Ti
-W_K1 = makeweight(XXX);
-W_K2 = makeweight(XXX);
+W_K1 = makeweight(0.8,10,1000);
+W_K2 = makeweight(0.7,10,1000);
 W_K  = mdiag(W_K1,W_K2);
 
 
@@ -322,25 +313,27 @@ W_K  = mdiag(W_K1,W_K2);
 % of the plant. There are thus not two but four transfer functions involved
 % in the problem.
 systemnames = 'G Wd W_S W_K';
-inputvar = ['[XXX]'];
+inputvar = '[w1{2}; w2{2}; u{2}]';
 input_to_G = '[u+Wd]';
 input_to_Wd = '[w2]';
-input_to_W_S = ['[w1-G]'];
+input_to_W_S = '[w1-G]';
 input_to_W_K = '[u]';
-outputvar = ['[XXX]'];
+outputvar = '[W_S;W_K;w1-G]';
 cleanupsysic = 'yes'; %this just deletes the temporary variables afterwards
 P = sysic;
 
 % The synthesis is exactly the same as above
-[~,~,gam,~] = hinfsyn(XXX);
-[K1,CL,gam,INFO] = hinfsyn(XXX);
+[~,~,gam,~] = hinfsyn(ssbal(P),nmeas,ncont,'method','lmi');
+[K1,CL,gam,INFO] = hinfsyn(ssbal(P),nmeas,ncont,'method','lmi','GMIN',1.1*gam);
 gam
 stab = isstable(CL)
 normOK = norm(CL,'inf')<gam
 fastestpole = max(abs(eig(K1.a)))
 
+%%
+
 % And also the analysis can be carried out as before
-loops = loopsens(XXX);
+loops = loopsens(G,K1);
 figure(14);
 subplot(2,2,1)
 sigma(loops.So,W_S^-1,w)
@@ -374,7 +367,7 @@ title('PZmap with four-block mixed sensitivity')
 
 % If we plot the responses to the reference step, the result looks much
 % worse than with the S/KS controller (Figure 17 vs figure 7).
-% The large overshoot is loosely speaking  aused by the additional loop 
+% The large overshoot is loosely speaking caused by the additional loop 
 % gain in the low frequency range. If you take a close look at the 
 % sensitivity plot in figure 14, you can see that
 % the sensitivity now has a +40dB per decade slope, which is 20dB more than
@@ -397,7 +390,7 @@ title('Disturbance response four-block mixed sensitivity')
 % If we test for robustness, we note that it is decreased.
 % Again, this is a consequence of the larger controller gains, or more
 % precisely of the larger control bandwidth with the four block design. 
-mm = loopmargin(XXX,'m');
+mm = loopmargin(G*K1,'m');
 minGM = db(mm.GainMargin(2))
 minPM = min(mm.PhaseMargin(2))
 
@@ -428,27 +421,43 @@ minPM = min(mm.PhaseMargin(2))
 % formulation thus has an additional input r that is used to form the 
 % control error (input_to_W_S) but that is also directly provided to the 
 % controller (outputvar).
+
+% disturbance weight
+Wd = diag([0.9, 1]);
+
+% S / SG
+W_S1 = makeweight(1000,2,0.5); 
+W_S2 = makeweight(1000,2,0.5);
+W_S  = mdiag(W_S1,W_S2);
+
+% KS / Ti
+W_K1 = makeweight(0.8,10,1000);
+W_K2 = makeweight(0.7,10,1000);
+W_K  = mdiag(W_K1,W_K2);
+
 systemnames = 'G Wd W_S W_K';
-inputvar = ['[w1{2}; w2{2}; r{2}; u{2}]'];
-input_to_G = '[XXX]';
-input_to_Wd = '[XXX]';
-input_to_W_S = ['[XXX]'];
-input_to_W_K = '[XXX]';
-outputvar = ['[W_S; W_K; w1-G; r]'];
+inputvar = '[w1{2}; w2{2}; r{2}; u{2}]';
+input_to_G = '[u+Wd]';
+input_to_Wd = '[w2]';
+input_to_W_S = '[r+w1-G]';
+input_to_W_K = '[u]';
+outputvar = '[W_S; W_K; w1-G; r]';
 cleanupsysic = 'yes'; 
-P = sysic
+P = sysic;
 
 
 % Again, we use the exact same synthesis except that we also have 
 % the reference signals available, so nmeas is now 4.
 nmeas = 2+2; 
 ncont = 2;
-[~,~,gam,~] = hinfsyn(XXX);
-[K2,CL,gam,INFO] = hinfsyn(XXX);
+[~,~,gam,~] = hinfsyn(ssbal(P),nmeas,ncont,'method','lmi');
+[K2,CL,gam,INFO] = hinfsyn(ssbal(P),nmeas,ncont,'method','lmi','GMIN',1.1*gam);
 gam
 stab = isstable(CL)
 normOK = norm(CL,'inf')<gam
 fastestpole = max(abs(eig(K2.a)))
+
+%%
 
 % The controller now has four inputs (Figure 25). The first two are meant
 % to be connected to the measured outputs of the plants and are thus
@@ -458,7 +467,7 @@ fastestpole = max(abs(eig(K2.a)))
 % Since robustness as well as the  closed-loop transfer functions that we 
 % are interested in depend only on  the feedback path, we have to use just 
 % that part of the controller associated with the first two inputs for analysis.
-loops = loopsens(XXX);
+loops = loopsens(G,K2(:,1:2));
 figure(24);
 subplot(2,2,1)
 sigma(loops.So,W_S^-1,w)
@@ -477,13 +486,15 @@ figure(25);
 bodemag(K2,'b',b,w)
 title('Controller with two-degrees-of-freedom')
 
+%%
+
 % We can build a closed loop (which is now a little more complicated
 % since it involves the two-degree-of-freedom controller) using sysic
 systemnames = 'G K2';
-inputvar = ['[di{2}; r{2}]'];
+inputvar = '[di{2}; r{2}]';
 input_to_G = '[K2+di]';
 input_to_K2 = '[-G;r]';
-outputvar = ['[G; K2]'];
+outputvar = '[G; K2]';
 cleanupsysic = 'yes';
 CL = sysic;
 % Again, the only real difference is, that the controller receives the
@@ -506,7 +517,7 @@ title('Disturbance response two-degrees-of-freedom')
 
 % Also, robustness of the feedback path should be pretty much the same as 
 % with the four block design.
-mm = loopmargin(XXX,'m');
+mm = loopmargin(G*K2(:,1:2),'m');
 minGM = db(mm.GainMargin(2))
 minPM = min(mm.PhaseMargin(2))
 
@@ -603,6 +614,42 @@ G = Dr\Gp*Du;
 %   X      X      X 
 %  / \    / \    / \ 
 % /   \  /   \  /   \
+
+Wd = diag([0.9, 1]);
+
+% S / SG
+W_S1 = makeweight(1000,2,0.5); 
+W_S2 = makeweight(1000,2,0.5);
+W_S3 = 1;
+W_S4 = 1;
+W_S5 = 1;
+W_S  = mdiag(W_S1,W_S2,W_S3,W_S4,W_S5);
+
+% KS / Ti
+W_K1 = makeweight(0.8,10,1000);
+W_K2 = makeweight(0.7,10,1000);
+W_K  = mdiag(W_K1,W_K2);
+
+systemnames = 'G Wd W_S W_K';
+inputvar = '[w1{5}; w2{2}; r{2}; u{2}]';
+input_to_G = '[u+Wd]';
+input_to_Wd = '[w2]';
+input_to_W_S = '[r+w1(1:2)-G(1:2); w1(3:5)-G(3:5)]';
+input_to_W_K = '[u]';
+outputvar = '[W_S; W_K; w1-G; r]';
+cleanupsysic = 'yes'; 
+P = sysic;
+
+nmeas = 7; 
+ncont = 2;
+
+% The synthesis is exactly the same as above
+[~,~,gam,~] = hinfsyn(ssbal(P),nmeas,ncont,'method','lmi');
+[K3,CL,gam,INFO] = hinfsyn(ssbal(P),nmeas,ncont,'method','lmi','GMIN',1.1*gam);
+gam
+stab = isstable(CL)
+normOK = norm(CL,'inf')<gam
+fastestpole = max(abs(eig(K3.a)))
 
 
 %% Evaluation of the controller in frequency and time domain

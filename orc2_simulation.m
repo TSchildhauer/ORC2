@@ -28,12 +28,12 @@ q3_0 = 0;
 % (1 for single-degree-of-freedom)
 % (2 for two-degrees-of-freedom)
 % (3 for two-degrees-of-freedom with all measurements)
-select_controller = 3;
+select_controller = 1;
 
 %% run simulation
 addpath('./simulink')
-open('orc2_GyroSimulation2')
-sim('orc2_GyroSimulation2')
+open('orc2_GyroSimulation')
+sim('orc2_GyroSimulation')
 
 
 %% Plots Simulation Results
